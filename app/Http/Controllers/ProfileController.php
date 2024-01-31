@@ -1,0 +1,106 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Http\Requests\ProfileUpdateRequest;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Redirect;
+use Illuminate\View\View;
+
+
+class ProfileController extends Controller
+{
+    /**
+     * Display the user's profile form.
+     */
+    public function edit(Request $request): View
+    {
+        return view('profile.edit', [
+            'user' => $request->user(),
+        ]);
+    }
+
+    /**
+     * Update the user's profile information.
+     */
+    public function update(ProfileUpdateRequest $request): RedirectResponse
+    {
+        // $request->user()->fill($request->validated());
+
+        // if ($request->user()->isDirty('email')) {
+        //     $request->user()->email_verified_at = null;
+        // }
+
+        // $request->user()->save();
+
+        // return Redirect::route('profile.edit')->with('status', 'profile-updated');
+
+        $user = $request->user();
+
+        // Update user's basic profile information
+        $user->fill([
+            'name' => $request->input('name'),
+            'email' => $request->input('email'),
+            'age' => $request->input('age'),
+            'location' => $request->input('location'),
+            'gender' => $request->input('gender'),
+            'language' => $request->input('language'),
+            'user_status' => $request->input('user_status'),
+        ]);
+
+        // Clear email verification if email is updated
+        if ($user->isDirty('email')) {
+            $user->email_verified_at = null;
+        }
+
+        if ($request->hasFile('user_profile')) {
+            $uploadedFile = $request->file('user_profile');
+
+            // Delete the old profile picture if it exists
+            if ($user->user_profile) {
+                $oldProfilePicturePath = public_path($user->user_profile);
+                if (file_exists($oldProfilePicturePath)) {
+                    unlink($oldProfilePicturePath);
+                }
+            }
+
+            // Upload the new profile picture
+            $profilePicturePath = $uploadedFile->store('user_profile', 'public');
+            $user->user_profile = '/storage/' . $profilePicturePath;
+        }
+
+        $user->save();
+
+        return redirect()->route('profile.edit')->with('status', 'profile-updated');
+    }
+
+
+    /**
+     * Delete the user's account.
+     */
+    public function destroy(Request $request): RedirectResponse
+    {
+        $request->validateWithBag('userDeletion', [
+            'password' => ['required', 'current_password'],
+        ]);
+
+        $user = $request->user();
+
+        Auth::logout();
+
+        $user->delete();
+
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return Redirect::to('/');
+    }
+
+    public function show(Request $request): View
+    {
+        $user = $request->user();
+        return view('userView.profile', compact('user'));
+    }
+}
